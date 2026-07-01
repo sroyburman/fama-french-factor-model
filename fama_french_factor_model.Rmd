@@ -1,0 +1,661 @@
+---
+title: "Explaining Stock Returns Using the Fama-French Three-Factor Model: A Comparison of Google, JP Morgan, and Coca-Cola"
+author: "Sage Roy-Burman"
+format: pdf
+---
+
+```{r, include = FALSE}
+Google_Monthly <- read.csv("Google_Monthly_Returns.csv")
+# Load Yahoo Finance data
+```
+
+```{r include = FALSE}
+Risk_Free <- read.csv("FRED.csv")
+# Load FRED data
+```
+
+```{r include = FALSE}
+library(readr)
+library(dplyr)
+
+Fama_French <- read_csv("FamaFrench.csv", skip = 3, show_col_types = FALSE)
+
+colnames(Fama_French) <- c("Month", "MKT_RF", "SMB", "HML", "RF")
+
+head(Fama_French)
+tail(Fama_French)
+# Load Fama French data, assign variable names, skip the title of the dataset
+```
+
+```{r, include = FALSE}
+Fama_French <- Fama_French %>%
+  filter(!is.na(Month))
+# Filter N/A
+```
+
+```{r, include = FALSE}
+Fama_French <- Fama_French %>%
+  filter(grepl("^[0-9]{6}$", Month))
+# Only keep rows where the format for Month is YYYYMM
+```
+
+```{r, include = FALSE}
+Fama_French <- Fama_French %>%
+  filter(Month >= 201805 & Month <= 202602)
+# Limit dataset to May 2018 to February 2026
+```
+
+```{r, include = FALSE}
+Risk_Free <- Risk_Free %>%
+  filter(observation_date != as.Date("2026-03-01"))
+# Remove the March observation date from the risk-free column
+```
+
+```{r, include = FALSE}
+Risk_Free <- Risk_Free %>%
+  mutate(
+    Month = format(as.Date(observation_date), "%Y%m")
+  )
+# Convert date to same YYYYMM format
+```
+
+```{r, include = FALSE}
+Google_Monthly <- Google_Monthly[order(Google_Monthly$Month, decreasing = TRUE), ]
+# Reorder dataset so most recent months come first
+```
+
+```{r, include = FALSE}
+Google_Monthly$Month <- as.character(Google_Monthly$Month)
+# Convert to a string to prepare for merge
+```
+
+```{r, include = FALSE}
+Google_Monthly <- Google_Monthly %>%
+  mutate(
+    Year = substr(Month, 1, 4),
+    Month_num = substr(Month, 5, nchar(Month)),
+    Month_num = sprintf("%02d", as.numeric(Month_num)),
+    Month = paste0(Year, Month_num)
+  )
+# Fixes Month variable formatting. Was initially either one or two digits for the month (ex. 20231, 202310), this code block converts and standardizes into YYYYMM (instead of the weird formatting of YYYYM and YYYYMM)
+```
+
+```{r, include = FALSE}
+Google_Monthly <- Google_Monthly %>%
+  arrange(desc(Month))
+# Sort rows from largest to smallest (puts dates in chronological order)
+```
+
+```{r, include = FALSE}
+Google_Monthly <- Google_Monthly %>%
+  filter(Month != ("202603"))
+# Once again, remove the March observation
+```
+
+```{r, include = FALSE}
+Risk_Free <- Risk_Free %>%
+  mutate(
+    Month = format(as.Date(observation_date), "%Y%m")
+  )
+# Ensures same Month variable format in the Risk_Free dataset
+```
+
+```{r, include = FALSE}
+Risk_Free <- Risk_Free %>%
+  mutate(RF = DGS1MO / 100)
+# Convert the percentage to a decimal
+Risk_Free <- Risk_Free %>%
+  mutate(RF = RF / 12)
+# Revert the annualization of monthly risk-free rate
+```
+
+```{r, include = FALSE}
+Risk_Free <- Risk_Free %>%
+  select(-observation_date)
+# Remove the observation_date column
+```
+
+```{r, include = FALSE}
+Fama_French <- Fama_French %>%
+  mutate(Month = as.character(Month))
+
+Google_Monthly <- Google_Monthly %>%
+  mutate(Month = as.character(Month))
+
+Risk_Free <- Risk_Free %>%
+  mutate(Month = as.character(Month))
+
+# Ensure all Month variables in the three datasets are strings for proper merging
+```
+
+```{r, include = FALSE}
+merged_data <- Google_Monthly %>%
+  inner_join(Fama_French, by = "Month") %>%
+  inner_join(Risk_Free, by = "Month")
+# Merging the three datasets by the common variable, Month
+```
+
+```{r, include = FALSE}
+head(merged_data)
+str(merged_data)
+names(merged_data)
+# Check new dataset
+```
+
+```{r, include = FALSE}
+merged_data <- merged_data %>%
+  mutate(
+    Return = as.numeric(gsub("%", "", Return)) / 100,
+    MKT_RF = MKT_RF / 100,
+    SMB = SMB / 100,
+    HML = HML / 100,
+  )
+# Change the percentages to decimals (Fama French data is in percentages)
+```
+
+```{r, include = FALSE}
+merged_data <- merged_data %>%
+  select(-RF.y, -DGS1MO, -RF.x)
+# Drop unnecessary/redundant columns
+```
+
+```{r, include = FALSE}
+Google_merged <- merged_data %>%
+  mutate(
+    Excess_Return = Return - RF
+  )
+# Create a new Excess Return variable (model variable of interest)
+```
+
+```{r, include = FALSE}
+JPM_Monthly <- read.csv("JPM Monthly.csv")
+```
+
+```{r, include = FALSE}
+JPM_Monthly$Month <- as.character(JPM_Monthly$Month)
+# Convert Month variable to a string
+```
+
+```{r, include = FALSE}
+JPM_merged <- merged_data %>%
+  inner_join(JPM_Monthly, by = "Month")
+# Create a new dataset with the merged data, adding JPM as the stock instead of GOOG
+```
+
+```{r, include = FALSE}
+KO_Monthly <- read.csv("Coca-Cola Monthly.csv")
+```
+
+```{r, include = FALSE}
+KO_Monthly$Month <- as.character(KO_Monthly$Month)
+# Convert Month variable to a string
+```
+
+```{r, include = FALSE}
+KO_merged <- merged_data %>%
+  inner_join(KO_Monthly, by = "Month")
+# Create a new dataset with KO as the stock of interest
+```
+
+```{r, include = FALSE}
+KO_merged <- KO_merged %>%
+  select(-Return.x)
+# Remove clutter
+```
+
+```{r, include = FALSE}
+JPM_merged <- JPM_merged %>%
+  select(-Return.x)
+# Remove clutter
+```
+
+```{r, include = FALSE}
+str(Google_merged)
+summary(Google_merged)
+```
+
+```{r, include = FALSE}
+str(JPM_merged)
+summary(JPM_merged)
+```
+
+```{r, include = FALSE}
+str(KO_merged)
+summary(KO_merged)
+```
+
+```{r, include = FALSE}
+Google_merged <- Google_merged %>%
+  select(-Year, -Month_num)
+# Remove clutter
+```
+
+```{r, include = FALSE}
+JPM_merged <- JPM_merged %>%
+  select(-Year, -Month_num)
+# Remove clutter
+```
+
+```{r, include = FALSE}
+KO_merged <- KO_merged %>%
+  select(-Year, -Month_num)
+# Remove clutter
+```
+
+```{r, include = FALSE}
+Google_merged <- Google_merged %>%
+  mutate(Date = as.Date(paste0(substr(Month,1,4), "-", substr(Month,5,6), "-01")))
+# Decided it would look cleaner if I changed the YYYYMM format to YYYY-MM-DD format for the first of the month
+```
+
+```{r, include = FALSE}
+JPM_merged <- JPM_merged %>%
+  mutate(Date = as.Date(paste0(substr(Month,1,4), "-", substr(Month,5,6), "-01")))
+# Same change as above
+```
+
+```{r, include = FALSE}
+KO_merged <- KO_merged %>%
+  mutate(Date = as.Date(paste0(substr(Month,1,4), "-", substr(Month,5,6), "-01")))
+# Same change as above
+```
+
+```{r, include = FALSE}
+Google_merged <- Google_merged %>%
+  select(-Month)
+# Remove Month now that Date is its replacement
+```
+
+```{r, include = FALSE}
+JPM_merged <- JPM_merged %>%
+  select(-Month)
+# Same as above
+```
+
+```{r, include = FALSE}
+KO_merged <- KO_merged %>%
+  select(-Month)
+# Same as above
+```
+
+```{r, include = FALSE}
+summary(Google_merged$Excess_Return)
+summary(Google_merged[, c("MKT_RF", "SMB", "HML")])
+```
+
+```{r, include = FALSE}
+JPM_merged <- JPM_merged %>%
+  mutate(Excess_Return = Return.y - RF)
+# Calculate JPM excess returns
+```
+
+```{r, include = FALSE}
+KO_merged <- KO_merged %>%
+  mutate(Excess_Return = Return.y - RF)
+# Calculate KO excess returns
+```
+
+```{r, include = FALSE}
+summary(JPM_merged$Excess_Return)
+```
+
+```{r, include = FALSE}
+summary(KO_merged$Excess_Return)
+```
+
+```{r, include = FALSE}
+library(ggplot2)
+ggplot(Google_merged, aes(x = MKT_RF, y = Excess_Return)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+# Plot Google excess returns vs. MKT_RF
+```
+
+```{r, include = FALSE}
+ggplot(Google_merged, aes(x = SMB, y = Excess_Return)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+# Plot Google excess returns vs. SMB values
+```
+
+```{r, include = FALSE}
+ggplot(Google_merged, aes(x = HML, y = Excess_Return)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+# Plot Google excess returns vs. HML values
+```
+
+```{r, include = FALSE}
+library(ggplot2)
+ggplot(Google_merged, aes(x = Date, y = Excess_Return)) +
+  geom_line() +
+  ggtitle("Google Excess Returns Over Time")
+```
+
+```{r, include = FALSE}
+ggplot(JPM_merged, aes(x = Date, y = Excess_Return)) +
+  geom_line() +
+  ggtitle("JP Morgan Excess Returns Over Time")
+```
+
+```{r, include = FALSE}
+ggplot(KO_merged, aes(x = Date, y = Excess_Return)) +
+  geom_line() +
+  ggtitle("Coca-Cola Excess Returns Over Time")
+```
+
+```{r, include = FALSE}
+reg_Google <- lm(Excess_Return ~ MKT_RF + SMB + HML, data = Google_merged)
+summary(reg_Google)
+```
+
+```{r, include = FALSE}
+confint(reg_Google)
+```
+
+```{r, include = FALSE}
+reg_JPM <- lm(Excess_Return ~ MKT_RF + SMB + HML, data = JPM_merged)
+summary(reg_JPM)
+```
+
+```{r, include = FALSE}
+confint(reg_JPM)
+```
+
+```{r, include = FALSE}
+reg_KO <- lm(Excess_Return ~ MKT_RF + SMB + HML, data = KO_merged)
+summary(reg_KO)
+```
+
+```{r, include = FALSE}
+confint(reg_KO)
+```
+
+```{r, include = FALSE}
+plot(reg_Google)
+# Q-Q and residuals vs. fitted plots
+```
+
+```{r, include = FALSE}
+plot(reg_JPM)
+# Q-Q and residuals vs. fitted plots
+```
+
+```{r, include = FALSE}
+plot(reg_KO)
+# Q-Q and residuals vs. fitted plots
+```
+
+```{r, include = FALSE}
+library(ggcorrplot)
+
+corr_data <- Google_merged[, c("Excess_Return", "MKT_RF", "SMB", "HML")]
+
+corr_matrix <- cor(corr_data)
+
+ggcorrplot(corr_matrix, lab = TRUE)
+
+# Create a correlation matrix of the factors + Google excess returns
+```
+
+```{r, include = FALSE}
+google_coef <- coef(reg_Google)
+jpm_coef <- coef(reg_JPM)
+ko_coef <- coef(reg_KO)
+
+coef_df <- data.frame(
+  Factor = rep(names(google_coef)[-1], 3),
+  Value = c(google_coef[-1], jpm_coef[-1], ko_coef[-1]),
+  Stock = rep(c("Google", "JPM", "KO"), each = 3)
+)
+
+library(ggplot2)
+
+ggplot(coef_df, aes(x = Factor, y = Value, fill = Stock)) +
+  geom_bar(stat = "identity", position = "dodge")
+# Visualization of coefficients, opted to use a better looking visual with confidence intervals later
+```
+
+**Abstract:**
+
+This project examines whether the Fama-French three-factor model explains stock returns and how factor sensitivities differ across firms. Using monthly data from May 2018 to February 2026, I analyze three companies from different sectors: Google (technology), JPMorgan (financials), and Coca-Cola (consumer staples). Stock return data from Yahoo Finance were merged with Fama-French factor data, and excess returns were calculated by subtracting the risk-free rate from the Federal Reserve Economic Database. Separate multiple linear regressions were estimated for each stock using the market, size (SMB), and value (HML) factors as predictors. The market factor is a strong predictor for all three firms, although its magnitude and the role of size and value factors differ considerably across stocks. The model explains substantially more variation in JPMorgan's returns (R² = 0.731) than in Google's (R² = 0.421) or Coca-Cola's (R² = 0.375), suggesting that the Fama-French framework is more effective for value-oriented financial firms than for growth or defensive stocks.
+
+**Introduction:**
+
+Financial markets are complex and unpredictable, yet a central goal of asset pricing is to understand the underlying factors that systematically drive stock returns. One of the most influential models in asset pricing is the Fama-French three-factor model, which extends traditional market-based explanations of returns by incorporating firm size and value characteristics. Rather than viewing returns as random, the framework suggests that differences in expected returns come from exposure to specific types of risk. As someone interested in financial markets and investments, I am particularly intrigued by whether these theoretical factors can meaningfully explain the real-world behavior of stocks, and why some stocks exhibit greater volatility, different return patterns, and varying sensitivity to economic conditions.\
+
+To explore this, the project applies the Fama-French three-factor model to three distinct stocks: Google (technology/growth), JP Morgan (financial/value), and Coca-Cola (consumer/defensive). Using monthly stock returns from 2018 to 2026, this study examines how exposure to market risk, size effects, and value characteristics vary across firms and how these differences relate to observed returns. The primary research question is: **to what extent do the Fama-French market, size, and value factors explain the excess returns of individual stocks, and how do these factor sensitivities differ across firms?** A secondary goal is to interpret these differences in terms of expected returns, exploring how varying exposure to systematic risk factors may lead to different risk premia across firms.
+
+**Methods**:
+
+This project uses monthly stock return data for Google, JPMorgan, and Coca-Cola from [Yahoo Finance](https://finance.yahoo.com/) for May 2018 through February 2026. After cleaning, each stock-specific dataset contained 94 monthly observations. The stock return data were then combined with Fama-French factor data from the [Fama-French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html), and the risk-free rate was obtained from 1-month U.S. Treasury yields in the [Federal Reserve Economic Database](https://fred.stlouisfed.org/). The data was then merged through the common “Month” variable. I used the risk-free rate series to then calculate monthly excess returns, which serve as the primary outcome variable in the analysis. The final modeling variables were each stock’s excess return, the market excess return factor (MKT_RF), the size factor (SMB), and the value factor (HML). In the data cleaning process, I converted percentage values to decimals, standardized month formatting, removed unnecessary date variables, and aligned all datasets to the same monthly time period.
+
+Before fitting the regression models, I conducted exploratory analysis including scatterplots of Google's excess returns against each factor, time-series plots for all three stocks, and a correlation matrix. These confirmed a strong positive linear relationship between the market factor and Google's excess returns, with weaker relationships for SMB and HML.
+
+The main statistical model was a multiple linear regression based on the Fama-French three-factor model, fit separately for each stock:
+
+$$
+\text{Excess Return}_t = \beta_0 + \beta_1 \text{MKT\_RF}_t + \beta_2 \text{SMB}_t + \beta_3 \text{HML}_t + \epsilon_t
+$$
+
+I used an alpha level of 0.05, noting marginal results at the 0.10 level. After fitting the models, I verified standard linear regression assumptions using residuals vs. fitted and Q-Q plots. These diagnostics suggested the linear model was a reasonable fit, though some deviation from ideal assumptions is expected with data from financial returns.
+
+**Results:**
+
+The Fama-French three-factor model was estimated separately for Google, JPMorgan, and Coca-Cola using monthly excess returns from May 2018 to February 2026 ($n = 94$ for each stock). Regression results are summarized in Table 1, with coefficient estimates and corresponding 95% confidence intervals.
+
+```{r, echo=FALSE}
+#| tbl-cap: "Results"
+
+library(knitr)
+
+# Function to extract regression results
+extract_results <- function(model) {
+  coefs <- coef(model)
+  cis <- confint(model)
+  pvals <- summary(model)$coefficients[,4]
+  
+  # Assign significance stars
+  stars <- ifelse(pvals < 0.01, "***",
+           ifelse(pvals < 0.05, "**",
+           ifelse(pvals < 0.1, "*", "")))
+  
+  # Create clean data frame
+  data.frame(
+    Variable = names(coefs),
+    Estimate = round(coefs, 3),
+    Stars = stars,
+    CI = paste0("(", round(cis[,1], 3), ", ", round(cis[,2], 3), ")")
+  )
+}
+
+# Extract results
+google_results <- extract_results(reg_Google)
+jpm_results <- extract_results(reg_JPM)
+ko_results <- extract_results(reg_KO)
+
+# Remove intercept
+google_results <- google_results[google_results$Variable != "(Intercept)", ]
+jpm_results <- jpm_results[jpm_results$Variable != "(Intercept)", ]
+ko_results <- ko_results[ko_results$Variable != "(Intercept)", ]
+
+# Combine into one table
+table_df <- data.frame(
+  Variable = google_results$Variable,
+  Google = paste0(google_results$Estimate, google_results$Stars, " ", google_results$CI),
+  JPM = paste0(jpm_results$Estimate, jpm_results$Stars, " ", jpm_results$CI),
+  KO = paste0(ko_results$Estimate, ko_results$Stars, " ", ko_results$CI)
+)
+
+# Add R² row
+r2_row <- data.frame(
+  Variable = "R^2",
+  Google = round(summary(reg_Google)$r.squared, 3),
+  JPM = round(summary(reg_JPM)$r.squared, 3),
+  KO = round(summary(reg_KO)$r.squared, 3)
+)
+
+table_df <- rbind(table_df, r2_row)
+
+# Create table
+kable(table_df, align = "c")
+```
+
+For Google, excess returns increase with the market factor, with a coefficient extremely close to one ($\beta = 0.999$, 95% CI $[0.735, 1.265]$), indicating a strong positive relationship between market excess returns and Google’s excess returns. The size factor (SMB) shows little association with excess returns ($p < 0.01$, $\beta = -0.104$, 95% CI $[-0.562, 0.353]$), and the value factor (HML) shows a weak negative association ($p < 0.1$, $\beta = -0.267$, 95% CI $[-0.562, 0.029]$), with limited statistical evidence of an effect. The model explains approximately 42% of the variation in Google’s excess returns ($R^2 = 0.421$).
+
+For JPMorgan, excess returns increase strongly with the market factor ($p < 0.01$, $\beta = 1.099$, 95% CI $[0.926, 1.271]$). The size factor again shows little association ($p > 0.1$, $\beta = 0.050$, 95% CI $[-0.249, 0.348]$). In contrast, the value factor shows a strong positive relationship with excess returns ($p < 0.01$, $\beta = 0.731$, 95% CI $[0.539, 0.924]$). The model explains a substantial portion of variation in JPMorgan’s excess returns ($R^2 = 0.731$).
+
+For Coca-Cola, excess returns increase with the market factor, though to a lesser extent than for the other stocks ($p < 0.01$, $\beta = 0.554$, 95% CI $[0.368, 0.741]$). The size factor shows a negative association ($p < 0.01$, $\beta = -0.676$, 95% CI $[-0.999, -0.354]$), while the value factor shows a positive association ($p < 0.01$, $\beta = 0.419$, 95% CI $[0.211, 0.627]$). The model explains approximately 37% of the variation in Coca-Cola’s excess returns ($R^2 = 0.375$).
+
+```{r, echo = FALSE}
+#| fig-cap: "Coefficient Estimates"
+# Google coefficients + confidence intervals
+google_coef <- coef(reg_Google)
+google_ci <- confint(reg_Google)
+
+# JPM coefficients + confidence intervals
+jpm_coef <- coef(reg_JPM)
+jpm_ci <- confint(reg_JPM)
+
+# KO coefficients + confidence intervals
+ko_coef <- coef(reg_KO)
+ko_ci <- confint(reg_KO)
+
+google_df <- data.frame(
+  term = names(google_coef),
+  estimate = google_coef,
+  conf.low = google_ci[,1],
+  conf.high = google_ci[,2],
+  Stock = "Google"
+)
+
+jpm_df <- data.frame(
+  term = names(jpm_coef),
+  estimate = jpm_coef,
+  conf.low = jpm_ci[,1],
+  conf.high = jpm_ci[,2],
+  Stock = "JPM"
+)
+
+ko_df <- data.frame(
+  term = names(ko_coef),
+  estimate = ko_coef,
+  conf.low = ko_ci[,1],
+  conf.high = ko_ci[,2],
+  Stock = "KO"
+)
+
+CIs <- rbind(google_df, jpm_df, ko_df)
+
+CIs <- CIs[CIs$term != "(Intercept)", ] # AI help
+
+# Build and combine data frames
+ggplot(CIs, aes(x = term, y = estimate, color = Stock)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_errorbar(
+    aes(ymin = conf.low, ymax = conf.high),
+    position = position_dodge(width = 0.5),
+    width = 0.2
+  ) + xlab("Factor") + ylab("Estimate")
+  ggtitle("Coefficient Estimates with 95% Confidence Intervals")
+
+# Plot coefficient estimates with 95% confidence intervals using the combined data
+```
+
+These results are visualized in Figure 1, which displays the estimated coefficients and their confidence intervals across the three stocks. The figure highlights differences in both the magnitude and direction of the coefficients. Time-series patterns of excess returns for each stock are shown in Figure 2, where all three series exhibit periods of volatility and similar movements over time.
+
+```{r, echo = FALSE}
+#| fig-cap: "Stock Returns Over Time"
+Google_mini <- Google_merged %>%
+  select(Date, Excess_Return) %>%
+  mutate(Stock = "Google")
+# Create mini datasets for Google, JPM, and KO with only date and excess return variables
+JPM_mini <- JPM_merged %>%
+  select(Date, Excess_Return) %>%
+  mutate(Stock = "JPM")
+
+KO_mini <- KO_merged %>%
+  select(Date, Excess_Return) %>%
+  mutate(Stock = "KO")
+
+combined_stocks <- rbind(Google_mini, JPM_mini, KO_mini)
+# Combine mini datasets into one dataset to plot
+ggplot(combined_stocks, aes(x = Date, y = Excess_Return)) +
+  geom_line() +
+  facet_wrap(~ Stock, ncol = 1) +
+  labs(
+    title = "Monthly Excess Returns Over Time",
+    x = "Date",
+    y = "Excess Return"
+  ) +
+  theme_minimal()
+# Plot all three stock monthly excess returns over time in a stacked graph
+```
+
+**Discussion:**
+
+The results uncover several notable patterns in how the Fama-French factors relate to stock returns across firms. The market factor is strongly associated with excess returns for all three stocks, though the magnitude varies - JP Morgan exhibits the highest sensitivity and Coca-Cola the lowest. Financial firms like JP Morgan tend to be more cyclical and closely tied to economic conditions, while consumer defensive firms like Coca-Cola exhibit more stable performance, which makes sense given these differences in market exposure.
+
+One of the most interesting findings is the strong positive association between the value factor (HML) and JP Morgan's excess returns, which is absent for Google and more moderate for Coca-Cola. This reflects the intuition that financial firms trade at higher book-to-market ratios and carry greater value-related risk, whereas large technology firms are typically classified as growth stocks. Coca-Cola's smaller but significant HML coefficient reflects its position as a mature, stable firm with some value characteristics. The size factor (SMB) shows limited explanatory power for Google and JPMorgan, but a strong negative association for Coca-Cola, consistent with its status as an established large-cap multi national company.
+
+These findings suggest that expected returns are linked to systematic risk exposure, with firms earning different risk premia depending on their characteristics. JP Morgan's strong value loading, for example, may imply higher expected returns as compensation for its value-related risk. The results also show that firms within the same market can carry very different risk profiles, with implications for portfolio construction and diversification.
+
+There are important limitations to consider. The sample of three firms limits generalizability, and the model assumes linear relationships and constant factor loadings over time. Rolling beta analysis (attached in the appendix) suggests market exposure does vary over time, but this was not incorporated into the regression framework. Financial return data also commonly exhibits non-normality and heteroskedasticity, which could affect inference. While the Fama-French model provides a useful framework, additional factors, such as momentum, or more flexible modeling approaches may be needed to fully capture return behavior across firms.
+
+**Conclusion:**
+
+This paper examined whether the Fama-French three-factor model can explain stock returns and how factor sensitivities differ across firms. Using monthly data for Google, JPMorgan, and Coca-Cola from 2018 to 2026, the results show that while all three stocks are influenced by broad market movements, their exposure to size and value factors varies significantly. Google's returns are primarily driven by market risk, JPMorgan exhibits strong value exposure, and Coca-Cola reflects more defensive, large-cap characteristics. These differences highlight that stock returns are not determined solely by market forces, but by the specific types of risk each firm carries. This project demonstrates how the Fama-French model provides a useful and intuitive framework for linking firm characteristics to differences in risk and return, and overall, for understanding how financial markets price risk differently across industries and firm types.
+
+**References:**
+
+Board of Governors of the Federal Reserve System (US), "Market Yield on U.S. Treasury Securities at 1-Month Constant Maturity, Quoted on an Investment Basis \[DGS1MO\]." retrieved from *FRED, Federal Reserve Bank of St. Louis*; https://fred.stlouisfed.org/series/DGS1MO
+
+Fama, Eugene F. and Kenneth R. French. "Fama/French 3 Factors (2x3)." *Kenneth R. French Data Library*. <https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html>
+
+Yahoo Finance. (2026). "GOOGL (NASDAQ) — Historical Prices (monthly adjusted close) \[Data set\]." *Yahoo Finance*. https://finance.yahoo.com/quote/GOOGL/history
+
+Yahoo Finance. (2026). "JPM (NYSE) — Historical Prices (monthly adjusted close) \[Data set\]." *Yahoo Finance*. https://finance.yahoo.com/quote/JPM/history
+
+Yahoo Finance. (2026). "KO (NYSE) — Historical Prices (monthly adjusted close) \[Data set\]." *Yahoo Finance*. https://finance.yahoo.com/quote/KO/history
+
+**Appendix:**
+
+Rolling beta plots:
+
+```{r, echo = FALSE}
+library(zoo)
+
+rolling_beta <- rollapply(
+  Google_merged[, c("Excess_Return", "MKT_RF")],
+  width = 24,
+  FUN = function(x) coef(lm(x[,1] ~ x[,2]))[2],
+  by.column = FALSE,
+  align = "right"
+)
+
+plot(rolling_beta, type = "l", main = "Rolling Market Beta (Google)")
+```
+
+```{r, echo = FALSE}
+rolling_beta <- rollapply(
+  JPM_merged[, c("Excess_Return", "MKT_RF")],
+  width = 24,
+  FUN = function(x) coef(lm(x[,1] ~ x[,2]))[2],
+  by.column = FALSE,
+  align = "right"
+)
+
+plot(rolling_beta, type = "l", main = "Rolling Market Beta (JP Morgan)")
+```
+
+```{r, echo = FALSE}
+rolling_beta <- rollapply(
+  KO_merged[, c("Excess_Return", "MKT_RF")],
+  width = 24,
+  FUN = function(x) coef(lm(x[,1] ~ x[,2]))[2],
+  by.column = FALSE,
+  align = "right"
+)
+
+plot(rolling_beta, type = "l", main = "Rolling Market Beta (Coca-Cola)")
+```
