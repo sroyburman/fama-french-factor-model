@@ -5,12 +5,12 @@ format: pdf
 ---
 
 ```{r}
-Google_Monthly <- read.csv("Google_Monthly_Returns.csv")
+Google_Monthly <- read.csv("data/Google_Monthly_Returns.csv")
 # Load Yahoo Finance data
 ```
 
 ```{r}
-Risk_Free <- read.csv("FRED.csv")
+Risk_Free <- read.csv("data/FRED.csv")
 # Load FRED data
 ```
 
@@ -168,7 +168,7 @@ Google_merged <- merged_data %>%
 ```
 
 ```{r}
-JPM_Monthly <- read.csv("JPM Monthly.csv")
+JPM_Monthly <- read.csv("data/JPM Monthly.csv")
 ```
 
 ```{r}
@@ -183,7 +183,7 @@ JPM_merged <- merged_data %>%
 ```
 
 ```{r}
-KO_Monthly <- read.csv("Coca-Cola Monthly.csv")
+KO_Monthly <- read.csv("data/Coca-Cola Monthly.csv")
 ```
 
 ```{r}
